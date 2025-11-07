@@ -1,9 +1,9 @@
-name: python Discord Bot
+name: sexo Discord Bot (Go)
 
 on:
   push:
     branches:
-      - main # Cambia a tu rama principal si es diferente
+      - main  # Cambia a tu rama principal si es diferente
 
 jobs:
   deploy:
@@ -13,17 +13,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          python-version: '3.9' # o la versión de Python que estés usando
+          go-version: '1.21' # o la versión de Go que estés usando
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+      - name: Download dependencies
+        run: go mod tidy
+
+      - name: Build
+        run: go build -o bot .
 
       - name: Run Bot
-        run: python bot.py
+        run: ./bot
         env:
-          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}  # Pasar el token como variable de entorno
