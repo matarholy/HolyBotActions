@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bufio"
+	//"bufio" // Eliminar esta linea
 	"fmt"
 	"math/rand"
 	"net"
@@ -20,7 +20,7 @@ var (
 	packetSize    = 64   // Tamaño del paquete (Reducido para disminuir el ancho de banda)
 	payload       []byte // Payload del paquete
 	tokenFileName = "token.txt"
-	commandPrefix = "." //  <- AQUÍ: Cambia el prefijo al que quieras
+	commandPrefix = "!" //  <- AQUÍ: Cambia el prefijo al que quieras
 )
 
 func init() {
